@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model AuthTokens {
+  id         String    @id(map: "PK__AuthToke__3213E83FB1D214A9") @default(dbgenerated("newid()"), map: "DF__AuthTokens__id__05D8E0BE") @db.UniqueIdentifier
+  user_id    String    @db.UniqueIdentifier
+  token_hash String    @db.NVarChar(255)
+  expires_at DateTime
+  created_at DateTime? @default(now(), map: "DF__AuthToken__creat__06CD04F7")
+  is_revoked Boolean?  @default(false, map: "DF__AuthToken__is_re__07C12930")
+  Users      Users     @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "FK_AuthTokens_Users")
+}
+
+model Businesses {
+  id            String     @id(map: "PK__Business__3213E83FA1088300") @default(dbgenerated("newid()"), map: "DF__Businesses__id__6E01572D") @db.UniqueIdentifier
+  user_id       String     @db.UniqueIdentifier
+  business_name String     @db.NVarChar(255)
+  contact_email String     @unique(map: "UQ__Business__8262A9CF1E5F7022") @db.NVarChar(255)
+  contact_phone String?    @db.NVarChar(50)
+  address       String?    @db.NVarChar(500)
+  logo_url      String?    @db.NVarChar(2048)
+  created_at    DateTime?  @default(now(), map: "DF__Businesse__creat__6EF57B66")
+  updated_at    DateTime?
+  Users         Users      @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "FK_Businesses_Users")
+  Services      Services[]
+  Websites      Websites[]
+}
+
+model Plans {
+  id            String   @id(map: "PK__Plans__3213E83FD85C674D") @default(dbgenerated("newid()"), map: "DF__Plans__id__6383C8BA") @db.UniqueIdentifier
+  name          String   @unique(map: "UQ__Plans__72E12F1BA71911B8") @db.NVarChar(100)
+  features      String?  @db.NVarChar(Max)
+  price         Decimal  @db.Decimal(10, 2)
+  billing_cycle String   @db.NVarChar(20)
+  currency      String   @db.NVarChar(3)
+  is_active     Boolean
+  description   String?  @db.NVarChar(Max)
+  max_users     Int?
+  created_at    DateTime
+  updated_at    DateTime
+  Users         Users[]
+
+  @@index([is_active, billing_cycle], map: "IX_Plans_IsActive_BillingCycle")
+}
+
+model Services {
+  id          String     @id(map: "PK__Services__3213E83FE8F5FAF7") @default(dbgenerated("newid()"), map: "DF__Services__id__7F2BE32F") @db.UniqueIdentifier
+  website_id  String     @db.UniqueIdentifier
+  business_id String     @db.UniqueIdentifier
+  name        String     @db.NVarChar(255)
+  description String?    @db.NVarChar(Max)
+  image_url   String?    @db.NVarChar(2048)
+  price       Decimal?   @db.Decimal(19, 4)
+  duration    Int?
+  is_bookable Boolean    @default(false, map: "DF__Services__is_boo__00200768")
+  created_at  DateTime?  @default(now(), map: "DF__Services__create__01142BA1")
+  updated_at  DateTime?
+  Businesses  Businesses @relation(fields: [business_id], references: [id], onUpdate: NoAction, map: "FK_Services_Businesses")
+  Websites    Websites   @relation(fields: [website_id], references: [id], onUpdate: NoAction, map: "FK_Services_Websites")
+}
+
+model Users {
+  id             String           @id(map: "PK__Users__3213E83F8C61FD76") @default(dbgenerated("newid()"), map: "DF__Users__id__6754599E") @db.UniqueIdentifier
+  plan_id        String           @db.UniqueIdentifier
+  name           String           @db.NVarChar(100)
+  email          String           @unique(map: "UQ__Users__AB6E6164172220FA") @db.NVarChar(255)
+  photo_url      String?          @db.NVarChar(2048)
+  created_at     DateTime?        @default(now(), map: "DF__Users__created_a__68487DD7")
+  last_login     DateTime?
+  password_hash  String?          @db.NVarChar(255)
+  firebase_uid   String?          @unique(map: "UQ__Users__1E65B7F850C971A9") @db.NVarChar(128)
+  activities     activities[]
+  AuthTokens     AuthTokens[]
+  Businesses     Businesses[]
+  contacts       contacts[]
+  deals          deals[]
+  interactions   interactions[]
+  leads          leads[]
+  PaymentHistory PaymentHistory[]
+  Subscription   Subscription[]
+  Plans          Plans            @relation(fields: [plan_id], references: [id], onUpdate: NoAction, map: "FK_Users_Plans")
+}
+
+model Websites {
+  id            String         @id(map: "PK__Websites__3213E83F3D3F65E5") @default(dbgenerated("newid()"), map: "DF__Websites__id__74AE54BC") @db.UniqueIdentifier
+  business_id   String         @db.UniqueIdentifier
+  website_url   String?        @unique(map: "UQ__Websites__DD4335C734F9C6BF") @db.NVarChar(2048)
+  subdomain     String?        @unique(map: "UQ__Websites__E956860B15EBE53C") @db.NVarChar(255)
+  created_at    DateTime?      @default(now(), map: "DF__Websites__create__75A278F5")
+  updated_at    DateTime?
+  Services      Services[]
+  Businesses    Businesses     @relation(fields: [business_id], references: [id], onUpdate: NoAction, map: "FK_Websites_Businesses")
+  WebsiteStyles WebsiteStyles?
+}
+
+model WebsiteStyles {
+  id         String    @id(map: "PK__WebsiteS__3213E83FF611DD85") @default(dbgenerated("newid()"), map: "DF__WebsiteStyle__id__7A672E12") @db.UniqueIdentifier
+  website_id String    @unique(map: "UQ__WebsiteS__F3CD51EED50FB436") @db.UniqueIdentifier
+  content    String?   @db.NVarChar(Max)
+  contact    String?   @db.NVarChar(Max)
+  styles     String?   @db.NVarChar(Max)
+  created_at DateTime? @default(now(), map: "DF__WebsiteSt__creat__7B5B524B")
+  updated_at DateTime?
+  Websites   Websites  @relation(fields: [website_id], references: [id], onUpdate: NoAction, map: "FK_WebsiteStyles_Website")
+}
+
+model PaymentHistory {
+  id           String   @id(map: "PK__PaymentH__3213E83FFAFCF2FB") @default(dbgenerated("newid()"), map: "DF__PaymentHisto__id__19DFD96B") @db.UniqueIdentifier
+  user_id      String   @db.UniqueIdentifier
+  amount       Decimal  @db.Decimal(18, 2)
+  payment_date DateTime @db.DateTime
+  status       String   @db.NVarChar(50)
+  payment_id   String   @db.NVarChar(100)
+  Users        Users    @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "FK_PaymentHistory_Users")
+}
+
+model Subscription {
+  id                 String    @id(map: "PK__Subscrip__3213E83F72C69E06") @default(dbgenerated("newid()"), map: "DF__Subscription__id__160F4887") @db.UniqueIdentifier
+  user_id            String    @db.UniqueIdentifier
+  status             String    @db.NVarChar(50)
+  mp_preapproval_id  String?   @db.NVarChar(100)
+  current_period_end DateTime? @db.DateTime
+  plan_id            Int
+  Users              Users     @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "FK_Subscription_Users")
+}
+
+model activities {
+  id          String    @id(map: "PK__activiti__3213E83F59FC73AB") @default(dbgenerated("newid()"), map: "DF__activities__id__39237A9A") @db.UniqueIdentifier
+  type        String    @db.NVarChar(50)
+  description String?   @db.NVarChar(Max)
+  due_date    DateTime? @db.DateTime
+  completed   Boolean?  @default(false, map: "DF__activitie__compl__3A179ED3")
+  user_id     String    @db.UniqueIdentifier
+  contact_id  String?   @db.UniqueIdentifier
+  deal_id     String?   @db.UniqueIdentifier
+  created_at  DateTime? @default(now(), map: "DF__activitie__creat__3B0BC30C") @db.DateTime
+  contacts    contacts? @relation(fields: [contact_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_activities_contact")
+  deals       deals?    @relation(fields: [deal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_activities_deal")
+  Users       Users     @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "fk_activities_user")
+}
+
+model companies {
+  id         String     @id(map: "PK__companie__3213E83F53D10607") @default(dbgenerated("newid()"), map: "DF__companies__id__2057CCD0") @db.UniqueIdentifier
+  name       String     @db.NVarChar(100)
+  industry   String?    @db.NVarChar(100)
+  website    String?    @db.NVarChar(200)
+  phone      String?    @db.NVarChar(20)
+  address    String?    @db.NVarChar(255)
+  created_at DateTime?  @default(now(), map: "DF__companies__creat__214BF109") @db.DateTime
+  contacts   contacts[]
+  deals      deals[]
+}
+
+model contacts {
+  id           String         @id(map: "PK__contacts__3213E83F348D9FC1") @default(dbgenerated("newid()"), map: "DF__contacts__id__251C81ED") @db.UniqueIdentifier
+  first_name   String         @db.NVarChar(50)
+  last_name    String         @db.NVarChar(50)
+  email        String?        @unique(map: "UQ__contacts__AB6E6164743138BF") @db.NVarChar(100)
+  phone_number String?        @db.NVarChar(20)
+  job_title    String?        @db.NVarChar(100)
+  company_id   String?        @db.UniqueIdentifier
+  user_id      String?        @db.UniqueIdentifier
+  created_at   DateTime?      @default(now(), map: "DF__contacts__create__2610A626") @db.DateTime
+  activities   activities[]
+  companies    companies?     @relation(fields: [company_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contacts_company")
+  Users        Users?         @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contacts_user")
+  deals        deals[]
+  interactions interactions[]
+  leads        leads[]
+}
+
+model deals {
+  id                  String       @id(map: "PK__deals__3213E83F2502AB80") @default(dbgenerated("newid()"), map: "DF__deals__id__318258D2") @db.UniqueIdentifier
+  title               String       @db.NVarChar(200)
+  contact_id          String?      @db.UniqueIdentifier
+  company_id          String?      @db.UniqueIdentifier
+  stage               String?      @default("Prospecting", map: "DF__deals__stage__32767D0B") @db.NVarChar(50)
+  value               Decimal?     @db.Decimal(18, 2)
+  expected_close_date DateTime?    @db.Date
+  user_id             String?      @db.UniqueIdentifier
+  created_at          DateTime?    @default(now(), map: "DF__deals__created_a__336AA144") @db.DateTime
+  activities          activities[]
+  companies           companies?   @relation(fields: [company_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_deals_company")
+  contacts            contacts?    @relation(fields: [contact_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_deals_contact")
+  Users               Users?       @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_deals_user")
+}
+
+model interactions {
+  id         String    @id(map: "PK__interact__3213E83F571D3E41") @default(dbgenerated("newid()"), map: "DF__interactions__id__40C49C62") @db.UniqueIdentifier
+  contact_id String    @db.UniqueIdentifier
+  user_id    String    @db.UniqueIdentifier
+  channel    String    @db.NVarChar(50)
+  content    String?   @db.NVarChar(Max)
+  created_at DateTime? @default(now(), map: "DF__interacti__creat__41B8C09B") @db.DateTime
+  contacts   contacts  @relation(fields: [contact_id], references: [id], onUpdate: NoAction, map: "fk_interactions_contact")
+  Users      Users     @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "fk_interactions_user")
+}
+
+model leads {
+  id         String    @id(map: "PK__leads__3213E83FDF76E646") @default(dbgenerated("newid()"), map: "DF__leads__id__2AD55B43") @db.UniqueIdentifier
+  contact_id String    @db.UniqueIdentifier
+  status     String?   @default("New", map: "DF__leads__status__2BC97F7C") @db.NVarChar(50)
+  source     String?   @db.NVarChar(100)
+  created_at DateTime? @default(now(), map: "DF__leads__created_a__2CBDA3B5") @db.DateTime
+  user_id    String?   @db.UniqueIdentifier
+  contacts   contacts  @relation(fields: [contact_id], references: [id], onUpdate: NoAction, map: "fk_leads_contact")
+  Users      Users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_leads_user")
+}
+
+model waitlist {
+  id            Int       @id(map: "PK__waitlist__3213E83F667DD59D") @default(autoincrement())
+  name          String    @db.NVarChar(255)
+  email         String    @unique(map: "UQ_waitlist_email") @db.NVarChar(255)
+  business_name String    @db.NVarChar(255)
+  phone         String?   @db.NVarChar(20)
+  county        String    @db.NVarChar(100)
+  city          String?   @db.NVarChar(100)
+  sector        String    @db.NVarChar(100)
+  created_at    DateTime? @default(now(), map: "DF__waitlist__create__3D2915A8")
+  updated_at    DateTime? @default(now(), map: "DF__waitlist__update__3E1D39E1")
+}
