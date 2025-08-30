@@ -11,6 +11,7 @@ const contactSchema = z.object({
   phone_number: z.string().max(20).optional(),
   company_id: z.string().max(100).optional(),
   job_title: z.string().max(100).optional(),
+  user_id: z.string().uuid({ message: 'Invalid user_id format.' }),
 });
 
 const interactionSchema = z.object({
@@ -34,13 +35,20 @@ const activitySchema = z.object({
 export class CrmService {
   /**
    * GET CONTACTS SERVICE:
-   * Retrieves all contacts from the database.
+   * Retrieves contacts from the database. When userId is provided,
+   * returns only contacts that belong to that user.
    *
+   * @param {string | undefined} userId - optional user id to scope results
    * @returns {Promise<any[]>} - Array of contact objects.
    */
-  async getContacts() {
-    return prisma.contacts.findMany();
+  async getContacts(userId?: string) {
+    const whereClause = userId ? { user_id: userId } : undefined;
+    return prisma.contacts.findMany({
+      where: whereClause,
+      orderBy: { created_at: 'desc' },
+    });
   }
+
 
   /**
    * UPDATE CONTACT SERVICE:
@@ -88,6 +96,7 @@ export class CrmService {
     return true;
   }
 
+
   /**
    * CREATE CONTACT SERVICE:
    * Validates and creates a new contact in the database.
@@ -104,7 +113,7 @@ export class CrmService {
     if (!validation.success) {
       throw { status: 400, error: validation.error.issues };
     }
-    const { first_name, last_name, email, phone_number, company_id, job_title } = validation.data;
+    const { first_name, last_name, email, phone_number, company_id, job_title, user_id } = validation.data;
 
     // Check for duplicate email
     const existing = await prisma.contacts.findUnique({ where: { email } });
@@ -120,7 +129,28 @@ export class CrmService {
         phone_number,
         company_id,
         job_title,
+        user_id: user_id ?? null, // <-- ensure user_id is persisted
       },
+    });
+  }
+
+
+  /**
+   * GET INTERACTIONS SERVICE
+   * Retrieve interactions, optionally filtered by contact_id or user_id.
+   *
+   * @param {{ contact_id?: string, user_id?: string } | undefined} filter - Optional filters.
+   * @returns {Promise<any[]>} Array of interaction records ordered by newest first.
+   * @throws {Error} On database errors.
+   */
+  async getInteractions(filter?: { contact_id?: string; user_id?: string }) {
+    const where: any = {};
+    if (filter?.contact_id) where.contact_id = filter.contact_id;
+    if (filter?.user_id) where.user_id = filter.user_id;
+
+    return prisma.interactions.findMany({
+      where,
+      orderBy: { created_at: 'desc' },
     });
   }
 
@@ -186,6 +216,28 @@ export class CrmService {
     }
     await prisma.interactions.delete({ where: { id } });
     return true;
+  }
+
+
+  /**
+   * GET ACTIVITIES SERVICE
+   * Retrieve activities, optionally filtered by user_id, contact_id, deal_id or completed status.
+   *
+   * @param {{ user_id?: string, contact_id?: string, deal_id?: string, completed?: boolean } | undefined} filter
+   * @returns {Promise<any[]>} Array of activity records ordered by newest first.
+   * @throws {Error} On database errors.
+   */
+  async getActivities(filter?: { user_id?: string; contact_id?: string; deal_id?: string; completed?: boolean }) {
+    const where: any = {};
+    if (filter?.user_id) where.user_id = filter.user_id;
+    if (filter?.contact_id) where.contact_id = filter.contact_id;
+    if (filter?.deal_id) where.deal_id = filter.deal_id;
+    if (typeof filter?.completed === 'boolean') where.completed = filter.completed;
+
+    return prisma.activities.findMany({
+      where,
+      orderBy: { created_at: 'desc' },
+    });
   }
 
 

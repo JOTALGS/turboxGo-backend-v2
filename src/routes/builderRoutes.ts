@@ -5,6 +5,24 @@ import { builderService } from '../services/builder/builderService';
 const router = Router();
 
 /**
+ * GET /api/builder/websites/:id
+ * Retrieve a website by business id.
+ */
+router.get('/websites/:id', async (req: Request, res: Response<ApiResponse<any>>) => {
+  try {
+    const id = req.params.id;
+    const website = await builderService.getWebsiteById(id);
+    if (!website) {
+      res.status(404).json({ success: false, error: 'Website not found' });
+      return;
+    }
+    res.json({ success: true, data: website });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, error: error.error || 'Failed to fetch website' });
+  }
+});
+
+/**
  * POST /api/builder/websites
  * Create a new website entry.
  */
@@ -52,6 +70,26 @@ router.delete('/websites/:id', async (req: Request, res: Response<ApiResponse<an
 });
 
 /**
+ * GET /api/builder/website-styles
+ * List website styles. Optional query param: website_id to filter.
+ */
+router.get('/website-styles', async (req: Request, res: Response<ApiResponse<any>>) => {
+  try {
+    const website_id = typeof req.query.website_id === 'string' ? req.query.website_id : undefined;
+    let data;
+    if (website_id) {
+      data = await builderService.getWebsiteStylesByWebsiteId(website_id);
+    } else {
+      res.status(400).json({ success: false, error: 'website_id query parameter is required' });
+      return;
+    }
+    res.json({ success: true, data });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, error: error.error || 'Failed to fetch website styles' });
+  }
+});
+
+/**
  * POST /api/builder/website-styles
  * Create a new website styles entry.
  */
@@ -66,7 +104,7 @@ router.post('/website-styles', async (req: Request, res: Response<ApiResponse<an
     const websiteStyles = await builderService.createWebsiteStyles({ website_id, content, contact, styles });
     res.status(201).json({ success: true, data: websiteStyles, message: 'Website styles created' });
   } catch (error: any) {
-    res.status(error.status || 500).json({ success: false, error: error.error || 'Failed to create website styles' });
+    res.status(error.status || 500).json({ success: false, error: error || 'Failed to create website styles' });
   }
 });
 

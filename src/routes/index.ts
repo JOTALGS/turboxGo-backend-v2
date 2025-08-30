@@ -5,6 +5,7 @@ import { siteRoutes } from './siteRoutes';
 import { mercadopagoRoutes } from './mercadopagoRoutes';
 import { builderRoutes } from './builderRoutes';
 import { crmRoutes } from './crmRoutes';
+import { businessRoutes } from './businessRoutes';
 
 const router = Router();
 
@@ -13,6 +14,7 @@ router.use('/health', healthRoutes);
 router.use('/publisher', siteRoutes);
 router.use('/mercadopago', mercadopagoRoutes);
 router.use('/builder', builderRoutes);
+router.use('/business', businessRoutes);
 router.use('/crm', crmRoutes);
 
 

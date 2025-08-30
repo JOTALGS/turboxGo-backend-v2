@@ -4,13 +4,31 @@ import { ApiResponse } from '../types';
 
 const router = Router();
 
+function getUserIdFromReq(req: Request): string | null {
+  // prefer authenticated user on req.user (if you have auth middleware)
+  const userFromReq = (req as any).user?.id;
+  if (userFromReq) return String(userFromReq);
+  // fallback to header set by frontend (x-user-id) if provided
+  const header = req.headers['x-user-id'];
+  if (typeof header === 'string') return header;
+  if (Array.isArray(header)) return header[0];
+  // fallback to body (rare)
+  if (req.body && req.body.user_id) return String(req.body.user_id);
+  return null;
+}
+
 /**
  * GET /api/crm/contacts
- * Retrieve all CRM contacts.
+ * Retrieve CRM contacts for the current user only.
  */
 router.get('/contacts', async (req: Request, res: Response<ApiResponse<any>>) => {
   try {
-    const contacts = await crmService.getContacts();
+    const userId = getUserIdFromReq(req);
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized: missing user id' });
+      return;
+    }
+    const contacts = await crmService.getContacts(userId);
     res.json({ success: true, data: contacts });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message || 'Failed to fetch contacts' });
@@ -19,14 +37,21 @@ router.get('/contacts', async (req: Request, res: Response<ApiResponse<any>>) =>
 
 /**
  * POST /api/crm/contacts
- * Add a new CRM contact.
+ * Add a new CRM contact associated to the current user.
  */
 router.post('/contacts', async (req: Request, res: Response<ApiResponse<any>>) => {
   try {
+    const userId = getUserIdFromReq(req);
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized: missing user id' });
+      return;
+    }
+    // force association with current user
+    req.body.user_id = userId;
     const contact = await crmService.createContact(req.body);
     res.status(201).json({ success: true, data: contact, message: 'Contact created' });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message || 'Failed to create contact' });
+    res.status(error.status || 500).json({ success: false, error: error.error || error.message || 'Failed to create contact' });
   }
 });
 
@@ -34,13 +59,7 @@ router.post('/contacts', async (req: Request, res: Response<ApiResponse<any>>) =
 /**
  * PUT /api/crm/contacts/:id
  * Update a CRM contact.
- *
- * @param {string} id - Contact ID (URL param).
- * @param {object} body - Contact data to update.
- * @returns {object} - The updated contact object.
- * @throws {400} - If validation fails.
- * @throws {404} - If contact not found.
- * @throws {500} - On server/database errors.
+ * Note: this endpoint updates the contact but does not change ownership.
  */
 router.put('/contacts/:id', async (req: Request, res: Response<ApiResponse<any>>) => {
   try {
@@ -54,12 +73,7 @@ router.put('/contacts/:id', async (req: Request, res: Response<ApiResponse<any>>
 
 /**
  * DELETE /api/crm/contacts/:id
- * Delete a CRM contact.
- *
- * @param {string} id - Contact ID (URL param).
- * @returns {object} - Success message.
- * @throws {404} - If contact not found.
- * @throws {500} - On server/database errors.
+ * Delete a CRM contact (no change: caller must ensure authorization).
  */
 router.delete('/contacts/:id', async (req: Request, res: Response<ApiResponse<any>>) => {
   try {
@@ -73,16 +87,37 @@ router.delete('/contacts/:id', async (req: Request, res: Response<ApiResponse<an
 
 
 /**
+ * GET /api/crm/interactions
+ * List interactions for the current user. Optional query param: contact_id to filter.
+ */
+router.get('/interactions', async (req: Request, res: Response<ApiResponse<any>>) => {
+  try {
+    const userId = getUserIdFromReq(req);
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized: missing user id' });
+      return;
+    }
+    const contact_id = typeof req.query.contact_id === 'string' ? req.query.contact_id : undefined;
+    const interactions = await crmService.getInteractions({ contact_id, user_id: userId });
+    res.json({ success: true, data: interactions });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, error: error.error || 'Failed to fetch interactions' });
+  }
+});
+
+
+/**
  * POST /api/crm/interactions
- * Create a new interaction.
- *
- * @param {object} body - Interaction data (contact_id, user_id, channel, content).
- * @returns {object} - The created interaction object.
- * @throws {400} - If validation fails.
- * @throws {500} - On server/database errors.
+ * Create a new interaction associated to the current user.
  */
 router.post('/interactions', async (req: Request, res: Response<ApiResponse<any>>) => {
   try {
+    const userId = getUserIdFromReq(req);
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized: missing user id' });
+      return;
+    }
+    req.body.user_id = userId;
     const interaction = await crmService.createInteraction(req.body);
     res.status(201).json({ success: true, data: interaction, message: 'Interaction created' });
   } catch (error: any) {
@@ -93,13 +128,6 @@ router.post('/interactions', async (req: Request, res: Response<ApiResponse<any>
 /**
  * PUT /api/crm/interactions/:id
  * Update an interaction.
- *
- * @param {string} id - Interaction ID (URL param).
- * @param {object} body - Interaction data to update.
- * @returns {object} - The updated interaction object.
- * @throws {400} - If validation fails.
- * @throws {404} - If interaction not found.
- * @throws {500} - On server/database errors.
  */
 router.put('/interactions/:id', async (req: Request, res: Response<ApiResponse<any>>) => {
   try {
@@ -114,11 +142,6 @@ router.put('/interactions/:id', async (req: Request, res: Response<ApiResponse<a
 /**
  * DELETE /api/crm/interactions/:id
  * Delete an interaction.
- *
- * @param {string} id - Interaction ID (URL param).
- * @returns {object} - Success message.
- * @throws {404} - If interaction not found.
- * @throws {500} - On server/database errors.
  */
 router.delete('/interactions/:id', async (req: Request, res: Response<ApiResponse<any>>) => {
   try {
@@ -131,16 +154,40 @@ router.delete('/interactions/:id', async (req: Request, res: Response<ApiRespons
 });
 
 /**
+ * GET /api/crm/activities
+ * List activities for the current user. Optional query params: contact_id, deal_id, completed.
+ */
+router.get('/activities', async (req: Request, res: Response<ApiResponse<any>>) => {
+  try {
+    const userId = getUserIdFromReq(req);
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized: missing user id' });
+      return;
+    }
+    const contact_id = typeof req.query.contact_id === 'string' ? req.query.contact_id : undefined;
+    const deal_id = typeof req.query.deal_id === 'string' ? req.query.deal_id : undefined;
+    const completed = typeof req.query.completed === 'string' ? (req.query.completed === 'true') : undefined;
+
+    const activities = await crmService.getActivities({ user_id: userId, contact_id, deal_id, completed });
+    res.json({ success: true, data: activities });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, error: error.error || 'Failed to fetch activities' });
+  }
+});
+
+
+/**
  * POST /api/crm/activities
- * Create a new activity.
- *
- * @param {object} body - Activity data (type, description, due_date, completed, user_id, contact_id, deal_id).
- * @returns {object} - The created activity object.
- * @throws {400} - If validation fails.
- * @throws {500} - On server/database errors.
+ * Create a new activity associated to the current user.
  */
 router.post('/activities', async (req: Request, res: Response<ApiResponse<any>>) => {
   try {
+    const userId = getUserIdFromReq(req);
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized: missing user id' });
+      return;
+    }
+    req.body.user_id = userId;
     const activity = await crmService.createActivity(req.body);
     res.status(201).json({ success: true, data: activity, message: 'Activity created' });
   } catch (error: any) {
@@ -151,13 +198,6 @@ router.post('/activities', async (req: Request, res: Response<ApiResponse<any>>)
 /**
  * PUT /api/crm/activities/:id
  * Update an activity.
- *
- * @param {string} id - Activity ID (URL param).
- * @param {object} body - Activity data to update.
- * @returns {object} - The updated activity object.
- * @throws {400} - If validation fails.
- * @throws {404} - If activity not found.
- * @throws {500} - On server/database errors.
  */
 router.put('/activities/:id', async (req: Request, res: Response<ApiResponse<any>>) => {
   try {
@@ -172,11 +212,6 @@ router.put('/activities/:id', async (req: Request, res: Response<ApiResponse<any
 /**
  * DELETE /api/crm/activities/:id
  * Delete an activity.
- *
- * @param {string} id - Activity ID (URL param).
- * @returns {object} - Success message.
- * @throws {404} - If activity not found.
- * @throws {500} - On server/database errors.
  */
 router.delete('/activities/:id', async (req: Request, res: Response<ApiResponse<any>>) => {
   try {
