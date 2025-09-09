@@ -59,7 +59,7 @@ class UserService {
         email: user.email,
         photo_url: user.photo_url ?? undefined,
         password_hash: user.password_hash ?? undefined,
-        firebase_uid: user.firebase_uid ?? undefined,
+        microsoft_id: user.microsoft_id ?? undefined,
         created_at: user.created_at ?? undefined,
         last_login: user.last_login ?? undefined,
       };
@@ -95,7 +95,7 @@ class UserService {
           email: true,
           photo_url: true,
           password_hash: true,
-          firebase_uid: true,
+          microsoft_id: true,
         }
       });
 
@@ -105,10 +105,10 @@ class UserService {
         id: dbUser.id,
         plan_id: dbUser.plan_id,
         name: dbUser.name,
-        email: dbUser.email,
+        email: dbUser.email ,
         photo_url: dbUser.photo_url ?? undefined,
         password_hash: dbUser.password_hash ?? undefined,
-        firebase_uid: dbUser.firebase_uid ?? undefined,
+        microsoft_id: dbUser.microsoft_id ?? undefined,
       };
 
       return user;
@@ -138,7 +138,7 @@ class UserService {
         email: true,
         photo_url: true,
         password_hash: true,
-        firebase_uid: true,
+        microsoft_id: true,
         created_at: true,
         last_login: true,
       }
@@ -151,7 +151,7 @@ class UserService {
       email: dbUser.email,
       photo_url: dbUser.photo_url ?? undefined,
       password_hash: dbUser.password_hash ?? undefined,
-      firebase_uid: dbUser.firebase_uid ?? undefined,
+      microsoft_id: dbUser.microsoft_id ?? undefined,
       created_at: dbUser.created_at ?? undefined,
       last_login: dbUser.last_login ?? undefined,
     };
@@ -202,7 +202,7 @@ class UserService {
           email: email,
           password_hash: hashedPassword,
           plan_id: '3d599a04-2792-4862-b24a-7eaa35a72af5',
-          firebase_uid: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          microsoft_id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         },
       });
 
@@ -237,6 +237,114 @@ class UserService {
       throw { status: 500, error: error instanceof Error ? error.message : error };
     }
   }
+
+
+  /**
+   * FIND OR CREATE MICROSOFT USER METHOD:
+   * This method handles finding an existing Microsoft user or creating a new one.
+   * It first searches by the Microsoft ID as the primary key, then by email if provided.
+   * If user doesn't exist, creates a new user using the Microsoft ID as the primary key.
+   *
+   * @param {object} microsoftData - The Microsoft user data.
+   * * @param {string} microsoftData.microsoft_id - The Microsoft user ID from OAuth.
+   * * @param {string} microsoftData.name - The user's display name from Microsoft.
+   * * @param {string} microsoftData.email - The user's email address from Microsoft.
+   *
+   * @returns {Promise<User & {isNewUser: boolean}>} A promise that resolves to the user object with isNewUser flag.
+   *
+   * Error Codes:
+   * @throws {{status: 500, error: object}} Throws a generic server error for any exceptions during the process.
+   **/
+  async findOrCreateMicrosoftUser(microsoftData: { 
+    microsoft_id: string; 
+    name: string; 
+    email: string; 
+  }): Promise<User & { isNewUser: boolean }> {
+    //console.log('############DEBUG############ Entered findOrCreateMicrosoftUser with:', microsoftData);
+    try {
+      const { microsoft_id, name, email } = microsoftData;
+
+      // First, try to find user by Microsoft ID as the primary key
+      let existingUser = await prisma.users.findUnique({
+        where: { id: microsoft_id },
+      });
+
+      // If not found by Microsoft ID, try to find by email (in case user registered with email first)
+      if (!existingUser && email && email !== `${microsoft_id}@microsoft.oauth`) {
+        const emailUser = await prisma.users.findUnique({
+          where: { email: email },
+        });
+        
+        if (emailUser) {
+          //console.log('############DEBUG############ Found existing user by email, but cannot merge due to different IDs');
+          // In this case, we have a conflict: user exists with email but different ID
+          // You might want to handle this differently based on your business logic
+          // For now, we'll create a new user with the Microsoft ID
+        }
+      }
+
+      if (existingUser) {
+        //console.log('############DEBUG############ Existing Microsoft user found:', existingUser.email);
+        
+        // Update last_login
+        existingUser = await prisma.users.update({
+          where: { id: microsoft_id },
+          data: { last_login: new Date() }
+        });
+
+        const user: User & { isNewUser: boolean } = {
+          id: existingUser.id,
+          plan_id: existingUser.plan_id,
+          name: existingUser.name,
+          email: existingUser.email,
+          photo_url: existingUser.photo_url ?? undefined,
+          password_hash: existingUser.password_hash ?? undefined,
+          microsoft_id: existingUser.microsoft_id ?? undefined,
+          created_at: existingUser.created_at ?? undefined,
+          last_login: existingUser.last_login ?? undefined,
+          isNewUser: false
+        };
+        return user;
+      }
+
+      // User doesn't exist, create new user with Microsoft ID as primary key
+      //console.log('############DEBUG############ Creating new Microsoft user with ID:', microsoft_id);
+      const newUser = await prisma.users.create({
+        data: {
+          id: microsoft_id, // Use Microsoft ID as the primary key
+          name: name,
+          email: email ?? null,
+          password_hash: null, // No password for OAuth users
+          plan_id: '3d599a04-2792-4862-b24a-7eaa35a72af5', // Default plan
+          microsoft_id: `microsoft_${microsoft_id}`, // Optional: mark as Microsoft user
+          created_at: new Date(),
+          last_login: new Date(),
+        },
+      });
+
+      //console.log('############DEBUG############ New Microsoft user created:', newUser);
+      
+      const user: User & { isNewUser: boolean } = {
+        id: newUser.id,
+        plan_id: newUser.plan_id,
+        name: newUser.name,
+        email: newUser.email,
+        photo_url: newUser.photo_url ?? undefined,
+        password_hash: newUser.password_hash ?? undefined,
+        microsoft_id: newUser.microsoft_id ?? undefined,
+        created_at: newUser.created_at ?? undefined,
+        last_login: newUser.last_login ?? undefined,
+        isNewUser: true
+      };
+      
+      return user;
+    } catch (error) {
+      console.error('############DEBUG############ Error in findOrCreateMicrosoftUser:', error);
+      throw { status: 500, error: error instanceof Error ? error.message : error };
+    }
+  }
+
+
 }
 
 export const userService = new UserService();

@@ -70,12 +70,12 @@ model Users {
   id             String           @id(map: "PK__Users__3213E83F8C61FD76") @default(dbgenerated("newid()"), map: "DF__Users__id__6754599E") @db.UniqueIdentifier
   plan_id        String           @db.UniqueIdentifier
   name           String           @db.NVarChar(100)
-  email          String           @unique(map: "UQ__Users__AB6E6164172220FA") @db.NVarChar(255)
+  email          String?          @unique(map: "UQ__Users__AB6E6164172220FA") @db.NVarChar(255)
   photo_url      String?          @db.NVarChar(2048)
   created_at     DateTime?        @default(now(), map: "DF__Users__created_a__68487DD7")
   last_login     DateTime?
   password_hash  String?          @db.NVarChar(255)
-  firebase_uid   String?          @unique(map: "UQ__Users__1E65B7F850C971A9") @db.NVarChar(128)
+  microsoft_id   String?          @unique(map: "UQ__Users__1E65B7F850C971A9") @db.NVarChar(128)
   activities     activities[]
   AuthTokens     AuthTokens[]
   Businesses     Businesses[]
@@ -166,11 +166,11 @@ model contacts {
   phone_number String?        @db.NVarChar(20)
   job_title    String?        @db.NVarChar(100)
   company_id   String?        @db.UniqueIdentifier
-  user_id      String?        @db.UniqueIdentifier
+  user_id      String         @db.UniqueIdentifier
   created_at   DateTime?      @default(now(), map: "DF__contacts__create__2610A626") @db.DateTime
   activities   activities[]
   companies    companies?     @relation(fields: [company_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contacts_company")
-  Users        Users?         @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contacts_user")
+  Users        Users          @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "fk_contacts_user")
   deals        deals[]
   interactions interactions[]
   leads        leads[]

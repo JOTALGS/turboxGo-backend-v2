@@ -369,4 +369,109 @@ router.delete('/:id', async (req: Request, res: Response<ApiResponse<null>>) => 
   }
 });
 
+
+/**
+ * POST /api/users/microsoft-auth
+ * Handle Microsoft OAuth authentication - create or retrieve user
+ * 
+ * @param {string} microsoft_id - The Microsoft user ID from the session
+ * @param {string} name - The user's name from Microsoft profile
+ * @param {string} email - The user's email from Microsoft profile (optional)
+ * 
+ * @returns {object} - The user object plus access and refresh tokens
+ * 
+ * @throws {400} - If required fields are missing
+ * @throws {500} - On server/database errors
+ **/
+router.post('/microsoft-auth', async (req: Request, res: Response<ApiResponse<any>>) => {
+  try {
+    //console.log('############DEBUG############ Microsoft auth request received:', req.body);
+    const { microsoft_id, name, email } = req.body;
+
+    if (!microsoft_id || !name) {
+      res.status(400).json({
+        success: false,
+        error: 'Microsoft ID and name are required'
+      });
+      return;
+    }
+
+    let user;
+    try {
+      // First try to find user by Microsoft ID
+      user = await userService.findOrCreateMicrosoftUser({
+        microsoft_id,
+        name,
+        email: email || `${microsoft_id}@microsoft.oauth` // Fallback email if not provided
+      });
+    } catch (err: any) {
+      console.error('############DEBUG############ Error in findOrCreateMicrosoftUser:', err);
+      res.status(err.status || 500).json({
+        success: false,
+        error: err.error || 'Failed to process Microsoft authentication'
+      });
+      return;
+    }
+
+    //console.log('############DEBUG############ Microsoft user processed:', user);
+
+    const accessToken = sign(
+      {
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        provider: 'microsoft'
+      },
+      process.env.ACCESS_TOKEN_SECRET!,
+      { expiresIn: '24h' }
+    );
+
+    const refreshToken = sign(
+      {
+        userId: user.id,
+      },
+      process.env.REFRESH_TOKEN_SECRET!,
+      { expiresIn: '7d' }
+    );
+
+    //console.log('############DEBUG############ Setting cookies for Microsoft user');
+
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 1000 * 60 * 60 * 24,
+      path: '/',
+    });
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+      path: '/',
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        plan_id: user.plan_id,
+        accessToken,
+        refreshToken
+      },
+      message: user.isNewUser ? 'User created successfully' : 'User authenticated successfully'
+    });
+  } catch (error) {
+    console.error('############DEBUG############ Error in Microsoft auth endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process Microsoft authentication'
+    });
+  }
+});
+
+
 export { router as userRoutes };
