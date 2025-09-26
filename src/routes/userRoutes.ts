@@ -34,8 +34,9 @@ router.get('/me', async (req: Request, res: Response<ApiResponse<User>>) => {
       data: user || undefined,
       message: 'User retrieved successfully'
     });
-  } catch (error) {
-    res.status(500).json({
+  } catch (error: Error | any) {
+    console.error('Error in /me endpoint:', error);
+    res.status(error.status || 500).json({
       success: false,
       error: 'Failed to retrieve user'
     });

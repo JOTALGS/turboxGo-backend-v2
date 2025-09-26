@@ -61,6 +61,7 @@ router.post('/', async (req: Request, res: Response<ApiResponse<any>>) => {
     const business = await businessService.createBusiness(req.body);
     res.status(201).json({ success: true, data: business, message: 'Business created' });
   } catch (error: any) {
+    console.error('ERROR CREATEING BUSINESS',error);
     res.status(error.status || 500).json({ success: false, error: error.error || 'Failed to create business' });
   }
 });

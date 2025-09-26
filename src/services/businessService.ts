@@ -61,6 +61,7 @@ export class BusinessService {
       address: address ?? null,
       logo_url: logo_url ?? null,
     };
+
     if (user_id !== undefined) {
       businessData.user_id = user_id;
     }

@@ -83,10 +83,12 @@ class UserService {
     try {
       const decoded: any = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET!);
       // decoded should contain userId or email
+      console.log('############DEBUG############ Decoded token:', token);
       const userId = decoded.userId;
       if (!userId) {
-        throw { status: 401, error: 'Invalid token payload' };
+        throw { status: 404, error: 'Invalid token payload, user not found' };
       }
+
       const dbUser = await prisma.users.findUnique({
         where: { id: userId }, select: {
           id: true,
@@ -116,7 +118,7 @@ class UserService {
       if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
         throw { status: 401, error: 'Invalid or expired token' };
       }
-      console.error('############DEBUG############ Error in getMyUser:', error);
+      console.error('Error in getMyUser:', error);
       throw { status: 500, error: error instanceof Error ? error.message : error };
     }
   }

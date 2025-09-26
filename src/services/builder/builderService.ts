@@ -3,39 +3,83 @@ import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
+type WebsiteStylesDB = {
+  id: string;
+  website_id: string;
+  content: string | null;
+  contact: string | null;
+  styles: string | null;
+  created_at: Date | string | null;
+  updated_at: Date | string | null;
+};
+
+type WebsiteStylesParsed = Omit<WebsiteStylesDB, 'content' | 'contact' | 'styles'> & {
+  content: unknown | null;
+  contact: unknown | null;
+  styles: unknown | null;
+};
+
 /**
  * VALIDATION SCHEMA
  * Validate the objects sent from the client with the desired schema
  */
 const contentSchema = z.object({
   name: z.string(),
-  logo_url: z.string(),
-  banner_url: z.string(),
+  logoUrl: z.string(),
+  bannerUrl: z.string(),
   title: z.string(),
   tagline: z.string(),
   about: z.any(),
+  font: z.string(),
   showHero: z.any(),
   showServices: z.any(),
   showAbout: z.any(),
   showGallery: z.any(),
 });
 
+
 const contactSchema = z.object({
-  email: z.string().email(),
+  email: z.union([z.string().email(), z.literal("")]),
   phone: z.union([z.string(), z.number()]),
   address: z.string(),
-  social_media_links: z.any(),
+  socialMediaLinks: z.any(),
 });
 
 const stylesSchema = z.object({
-  primary_color: z.string(),
-  secondary_color: z.union([z.string(), z.number()]),
-  text_primary_color: z.string(),
-  text_secondary_color: z.string(),
-  background_color: z.string(),
-  hover_color: z.string(),
+  primaryColor: z.string(),
+  secondaryColor: z.union([z.string(), z.number()]),
+  textPrimaryColor: z.string(),
+  textSecondaryColor: z.string(),
+  backgroundColor: z.string(),
+  hoverColor: z.string(),
   fontFamily: z.string(),
 });
+
+// ---------- HELPERS PRIVADOS (Website Styles Parsing) ----------
+function safeParse<T = unknown>(value: unknown): T | unknown | null {
+  if (value == null) return null;
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return value;
+  }
+}
+
+function normalizeWebsiteStylesRow(row: WebsiteStylesDB): WebsiteStylesParsed {
+  return {
+    ...row,
+    content: safeParse(row.content),
+    contact: safeParse(row.contact),
+    styles:  safeParse(row.styles),
+  };
+}
+
+function normalizeWebsiteStylesRows(rows: WebsiteStylesDB[]): WebsiteStylesParsed[] {
+  return rows.map(normalizeWebsiteStylesRow);
+}
+
 
 export class BuilderService {
   /**
@@ -112,15 +156,15 @@ export class BuilderService {
   async createWebsiteStyles(data: { website_id: string; content: any; contact: any; styles: any }) {
     const contentValidation = contentSchema.safeParse(data.content);
     if (!contentValidation.success) {
-      throw { status: 400, error: contentValidation.error.issues };
+      throw { status: 415, error: contentValidation.error.issues };
     }
     const contactValidation = contactSchema.safeParse(data.contact);
     if (!contactValidation.success) {
-      throw { status: 400, error: contactValidation.error.issues };
+      throw { status: 416, error: contactValidation.error.issues };
     }
     const stylesValidation = stylesSchema.safeParse(data.styles);
     if (!stylesValidation.success) {
-      throw { status: 400, error: stylesValidation.error.issues };
+      throw { status: 417, error: stylesValidation.error.issues };
     }
 
     return prisma.websiteStyles.create({
@@ -220,7 +264,8 @@ export class BuilderService {
    * @throws {Error} On database errors.
    */
   async getWebsiteStylesByWebsiteId(websiteId: string) {
-    return prisma.websiteStyles.findMany({ where: { website_id: websiteId } });
+    const rows = await prisma.websiteStyles.findMany({ where: { website_id: websiteId } });
+    return normalizeWebsiteStylesRows(rows as WebsiteStylesDB[])[0];
   }
 }
 

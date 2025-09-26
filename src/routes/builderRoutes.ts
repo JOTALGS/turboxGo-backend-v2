@@ -9,18 +9,37 @@ const router = Router();
  * Retrieve a website by business id.
  */
 router.get('/websites/:id', async (req: Request, res: Response<ApiResponse<any>>) => {
-  try {
-    const id = req.params.id;
-    const website = await builderService.getWebsiteById(id);
-    if (!website) {
-      res.status(404).json({ success: false, error: 'Website not found' });
-      return;
+    try {
+      const id = req.params.id;
+
+      const website = await builderService.getWebsiteById(id);
+      if (!website) {
+        res.status(404).json({ success: false, error: 'Website not found' });
+        return;
+      }
+
+      let styles: any = null;
+      try {
+        styles = await builderService.getWebsiteStylesByWebsiteId(website.id);
+      } catch (err: any) {
+        styles = null;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          website,
+          styles,
+        },
+      });
+    } catch (error: any) {
+      res
+        .status(error?.status || 500)
+        .json({ success: false, error: error?.error || 'Failed to fetch website' });
     }
-    res.json({ success: true, data: website });
-  } catch (error: any) {
-    res.status(error.status || 500).json({ success: false, error: error.error || 'Failed to fetch website' });
   }
-});
+);
+
 
 /**
  * POST /api/builder/websites
@@ -37,6 +56,7 @@ router.post('/websites', async (req: Request, res: Response<ApiResponse<any>>) =
     const website = await builderService.createWebsite({ business_id, website_url, subdomain });
     res.status(201).json({ success: true, data: website, message: 'Website created' });
   } catch (error: any) {
+    console.error('ERROR CREATEING NEW WEBSITE', error);
     res.status(error.status || 500).json({ success: false, error: error.error || 'Failed to create website' });
   }
 });
@@ -97,13 +117,14 @@ router.post('/website-styles', async (req: Request, res: Response<ApiResponse<an
   try {
     const { website_id, content, contact, styles } = req.body;
     if (!website_id || !content || !contact || !styles) {
-      res.status(400).json({ success: false, error: 'Missing required fields' });
+      res.status(400).json({ success: false, error: `Missing required fields ${JSON.stringify(req.body)}` });
       return;
     }
 
     const websiteStyles = await builderService.createWebsiteStyles({ website_id, content, contact, styles });
     res.status(201).json({ success: true, data: websiteStyles, message: 'Website styles created' });
   } catch (error: any) {
+    console.error('ERROR CREATEING NEW WEBSITE STYLES', error);
     res.status(error.status || 500).json({ success: false, error: error || 'Failed to create website styles' });
   }
 });
